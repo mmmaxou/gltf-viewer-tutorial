@@ -21,6 +21,44 @@ void keyCallback(
   }
 }
 
+/*
+Part 1 : 
+Implement a method bool loadGltfFile(tinygltf::Model & model);
+that should use m_gltfFilePath.string() to load the correct file into the model structure.
+The method return value should correspond to what gltf returns.
+If there is errors or warning, print them.
+*/
+bool ViewerApplication::loadGltfFile(tinygltf::Model & model) {
+  std::cout << " (つ•̀ᴥ•́)つ*:･ﾟ✧ Let's load some Models" << std::endl;
+
+  // Define a loader
+  tinygltf::TinyGLTF loader;
+
+  // Define outputs strings
+  std::string err;
+  std::string warn;
+
+  // Load the model from our source string
+  bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, m_gltfFilePath.string());
+
+  // Display errors if required
+  if (!warn.empty()) {
+    std::cout << "Warning : " << warn.c_str() << std::endl;
+  }
+
+  if (!err.empty()) {
+    std::cout << "Error  : " << err.c_str() << std::endl;
+  }
+
+  if (!ret) {
+    std::cout << "Failed to parse glTF : " << std::endl;
+    return -1;
+  }
+
+  // Return the command value
+  return ret;
+}
+
 int ViewerApplication::run()
 {
   // Loader shaders
@@ -54,8 +92,14 @@ int ViewerApplication::run()
         Camera{glm::vec3(0, 0, 0), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0)});
   }
 
-  tinygltf::Model model;
   // TODO Loading the glTF file
+  // DONE
+  tinygltf::Model model;
+  bool loadingModelSuccess = loadGltfFile(model);
+  if ( loadingModelSuccess ) {
+    std::cout << "ლ ( ◕  ᗜ  ◕ ) ლ Model loaded " << std::endl;
+  }
+
 
   // TODO Creation of Buffer Objects
 
@@ -145,10 +189,15 @@ int ViewerApplication::run()
   return 0;
 }
 
-ViewerApplication::ViewerApplication(const fs::path &appPath, uint32_t width,
-    uint32_t height, const fs::path &gltfFile,
-    const std::vector<float> &lookatArgs, const std::string &vertexShader,
-    const std::string &fragmentShader, const fs::path &output) :
+ViewerApplication::ViewerApplication(
+    const fs::path &appPath,
+    uint32_t width,
+    uint32_t height,
+    const fs::path &gltfFile,
+    const std::vector<float> &lookatArgs,
+    const std::string &vertexShader,
+    const std::string &fragmentShader,
+    const fs::path &output) :
     m_nWindowWidth(width),
     m_nWindowHeight(height),
     m_AppPath{appPath},
