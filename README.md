@@ -26,15 +26,45 @@ cmake ../gltf-viewer-tutorial-git && make -j
 
 ## Test program using Model DamagedHelmet
 
-Be in the build folder
+You must be in the build folder
+
+### Default
 
 ```bash
-./bin/gltf-viewer viewer ../glTF-Sample-Models/DamagedHelmet/glTF/DamagedHelmet.gltf 
+make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/DamagedHelmet/glTF/DamagedHelmet.gltf 
 ```
 
-Or
+### Custom lookat
 
 ```bash
-make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/DamagedHelmet/glTF/DamagedHelmet.gltf
+make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/DamagedHelmet/glTF/DamagedHelmet.gltf --lookat "2.49055,-0.439571,2.37761,1.79665,-0.359656,1.66199,0.0556313,0.996802,0.0573718"
+```
+
+### Image Output
+
+```bash
+make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/DamagedHelmet/glTF/DamagedHelmet.gltf --lookat "2.49055,-0.439571,2.37761,1.79665,-0.359656,1.66199,0.0556313,0.996802,0.0573718" --output helmet_output.png
+```
+
+
+## Test program using Model Sponza
+
+You must be in the build folder
+
+### Default
+
+```bash
 make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/Sponza/glTF/Sponza.gltf
+```
+
+### Custom lookat
+
+```bash
+make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/Sponza/glTF/Sponza.gltf --lookat "-5.26056,6.59932,0.85661,-4.40144,6.23486,0.497347,0.342113,0.931131,-0.126476"
+```
+
+### Image Output
+
+```bash
+make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/Sponza/glTF/Sponza.gltf --lookat "-5.26056,6.59932,0.85661,-4.40144,6.23486,0.497347,0.342113,0.931131,-0.126476" --output sponza_output.png
 ```

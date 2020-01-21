@@ -13,6 +13,7 @@
 
 #include "utils/gltf.hpp"
 #include "utils/cameras.hpp"
+#include "utils/images.hpp"
 #include <stb_image_write.h>
 #include <tiny_gltf.h>
 
@@ -248,6 +249,10 @@ Main run method
 */
 int ViewerApplication::run()
 {
+  std::cout << COLOR_BOLD << std::endl << "==============================================" << std::endl;
+  std::cout << "╰(✿˙ᗜ˙)੭━☆ﾟ.*･｡ﾟ Starting the application" << std::endl;
+  std::cout << "==============================================" << COLOR_RESET << std::endl << std::endl;
+
   // Loader shaders
   const auto glslProgram =
       compileProgram({m_ShadersRootPath / m_AppName / m_vertexShader,
@@ -260,28 +265,6 @@ int ViewerApplication::run()
   const auto normalMatrixLocation =
       glGetUniformLocation(glslProgram.glId(), "uNormalMatrix");
 
-  // Build projection matrix
-  auto maxDistance = 500.f; // TODO use scene bounds instead to compute this
-  maxDistance = maxDistance > 0.f ? maxDistance : 100.f;
-  const auto projMatrix =
-      glm::perspective(70.f, float(m_nWindowWidth) / m_nWindowHeight,
-          0.001f * maxDistance, 1.5f * maxDistance);
-
-  std::cout << COLOR_BOLD << std::endl << "==============================================" << std::endl;
-  std::cout << "╰(✿˙ᗜ˙)੭━☆ﾟ.*･｡ﾟ Starting the application" << std::endl;
-  std::cout << "==============================================" << COLOR_RESET << std::endl << std::endl;
-
-  // TODO Implement a new CameraController model and use it instead. Propose the
-  // choice from the GUI
-  FirstPersonCameraController cameraController{
-      m_GLFWHandle.window(), 0.5f * maxDistance};
-  if (m_hasUserCamera) {
-    cameraController.setCamera(m_userCamera);
-  } else {
-    // TODO Use scene bounds to compute a better default camera
-    cameraController.setCamera(
-        Camera{glm::vec3(0, 0, 0), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0)});
-  }
 
   // TODO Loading the glTF file
   tinygltf::Model model;
@@ -292,6 +275,58 @@ int ViewerApplication::run()
   } else {
     std::cout << COLOR_RED << "ლ(ಥ Д ಥ )ლ " << COLOR_RESET << " Oh no !! Model failed to load" << COLOR_RESET << std::endl << std::endl;
   }
+
+  /*
+    Assuming bboxMin and bboxMax are glm::vec3
+    Center of the bounding box using bboxMin and bboxMax is
+
+    center = (bboxMin + bboxMax) * 0.5;
+
+    Diagonal vector from bboxMin to bboxMax is
+
+    diagonal = bboxMax - bboxMin
+  */
+
+  // void computeSceneBounds(const tinygltf::Model &model, glm::vec3 &bboxMin, glm::vec3 &bboxMax);
+  glm::vec3 bboxMin, bboxMax; 
+  computeSceneBounds(model, bboxMin, bboxMax);
+  glm::vec3 center = (bboxMin + bboxMax) * 0.5f;
+  glm::vec3 diagonal = bboxMax - bboxMin;
+  glm::vec3 up = glm::vec3(0, 1, 0);
+
+  // Use the diagonal vector to compute a maximum distance between two points of the scene.
+  float maxDistance = glm::length(diagonal);
+  maxDistance = maxDistance > 0.f ? maxDistance : 100.f;
+
+  // Build projection matrix
+  // Use near = 0.001f * maxDistance and far = 1.5f * maxDistance to compute the project matrix (the call to glm::perspective).
+  const auto projMatrix = glm::perspective(
+    70.f, 
+    float(m_nWindowWidth) / m_nWindowHeight,
+    0.001f * maxDistance,
+    1.5f * maxDistance
+  );
+
+  // TODO Implement a new CameraController model and use it instead. Propose the
+  // choice from the GUI
+  FirstPersonCameraController cameraController{m_GLFWHandle.window(), 1.5f * maxDistance};
+  if (m_hasUserCamera) {
+    cameraController.setCamera(m_userCamera);
+  } else {
+    // TODO Use scene bounds to compute a better default camera
+
+    // A special case we need to handle is flat scenes (like a single triangle).
+    // In that case, we need to use align our view with a vector orthogonal to the scene.
+    // We will only handle flat scenes on the z axis.
+    if ( bboxMax.z - bboxMin.z < 0.001f ) {
+      // The scene is flat
+      cameraController.setCamera(Camera{center + 2.f * glm::cross(diagonal, up), center, up});
+    } else {
+      // The scene is not flat
+      cameraController.setCamera(Camera{center + diagonal, center, up});
+    }
+  }
+
 
 
   // TODO Creation of Buffer Objects
@@ -454,63 +489,97 @@ int ViewerApplication::run()
     glBindVertexArray(0);
   };
 
-  // Loop until the user closes the window
-  for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose();
-       ++iterationCount) {
-    const auto seconds = glfwGetTime();
+  if ( !m_OutputPath.empty() ) {
 
-    const auto camera = cameraController.getCamera();
-    drawScene(camera);
+    std::cout << COLOR_MAGENTA << "(つ•̀ᴥ•́)つ*:･ﾟ✧ " << COLOR_RESET << " Let's make an image !" << std::endl;
 
-    // GUI code:
-    imguiNewFrame();
+    // Render to image
+    std::vector<unsigned char> pixels( m_nWindowWidth * m_nWindowHeight * 3);
+    renderToImage(m_nWindowWidth, m_nWindowHeight, 3, pixels.data(), [&]() {
+      drawScene(cameraController.getCamera());
+    });
 
-    {
-      ImGui::Begin("GUI");
-      ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-          1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::Text("eye: %.3f %.3f %.3f", camera.eye().x, camera.eye().y,
-            camera.eye().z);
-        ImGui::Text("center: %.3f %.3f %.3f", camera.center().x,
-            camera.center().y, camera.center().z);
-        ImGui::Text(
-            "up: %.3f %.3f %.3f", camera.up().x, camera.up().y, camera.up().z);
+    // Flip the image vertically, because OpenGL does not use the same convention for that than png files.
+    flipImageYAxis<unsigned char>(m_nWindowWidth, m_nWindowHeight, 3, pixels.data());
 
-        ImGui::Text("front: %.3f %.3f %.3f", camera.front().x, camera.front().y,
-            camera.front().z);
-        ImGui::Text("left: %.3f %.3f %.3f", camera.left().x, camera.left().y,
-            camera.left().z);
+    // Write the png file with stb_image_write library which is included in the third-parties.
+    const auto strPath = m_OutputPath.string();
+    stbi_write_png(strPath.c_str(), m_nWindowWidth, m_nWindowHeight, 3, pixels.data(), 0);
 
-        if (ImGui::Button("CLI camera args to clipboard")) {
-          std::stringstream ss;
-          ss << "--lookat " << camera.eye().x << "," << camera.eye().y << ","
-             << camera.eye().z << "," << camera.center().x << ","
-             << camera.center().y << "," << camera.center().z << ","
-             << camera.up().x << "," << camera.up().y << "," << camera.up().z;
-          const auto str = ss.str();
-          glfwSetClipboardString(m_GLFWHandle.window(), str.c_str());
+    // Finally at the end of the if statement, returns 0. So in that mode, our application just render an image in a file and leave.
+    std::cout << COLOR_MAGENTA << "╰[✿•̀o•́✿]╯       " << COLOR_RESET << "Image was rendered ! Yay !" << std::endl;
+    std::cout << COLOR_MAGENTA << "ʕ༼◕  ౪  ◕✿༽ʔ    " << COLOR_RESET << "Good bye !" << std::endl;
+    std::cout << COLOR_BOLD << std::endl << "==============================================" << std::endl;
+    std::cout << "┗(＾0＾)┓ Leaving the application" << std::endl;
+    std::cout << "==============================================" << COLOR_RESET << std::endl << std::endl;
+    return 0;
+  } else {
+
+    std::cout << COLOR_MAGENTA << "(つ•̀ᴥ•́)つ*:･ﾟ✧ " << COLOR_RESET << " Let's run in interactive mode !" << std::endl;
+
+    // Loop until the user closes the window
+    for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose();
+        ++iterationCount) {
+      const auto seconds = glfwGetTime();
+
+      const auto camera = cameraController.getCamera();
+      drawScene(camera);
+
+      // GUI code:
+      imguiNewFrame();
+
+      {
+        ImGui::Begin("GUI");
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+            1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::Text("eye: %.3f %.3f %.3f", camera.eye().x, camera.eye().y,
+              camera.eye().z);
+          ImGui::Text("center: %.3f %.3f %.3f", camera.center().x,
+              camera.center().y, camera.center().z);
+          ImGui::Text(
+              "up: %.3f %.3f %.3f", camera.up().x, camera.up().y, camera.up().z);
+
+          ImGui::Text("front: %.3f %.3f %.3f", camera.front().x, camera.front().y,
+              camera.front().z);
+          ImGui::Text("left: %.3f %.3f %.3f", camera.left().x, camera.left().y,
+              camera.left().z);
+
+          if (ImGui::Button("CLI camera args to clipboard")) {
+            std::stringstream ss;
+            ss << "--lookat " << camera.eye().x << "," << camera.eye().y << ","
+              << camera.eye().z << "," << camera.center().x << ","
+              << camera.center().y << "," << camera.center().z << ","
+              << camera.up().x << "," << camera.up().y << "," << camera.up().z;
+            const auto str = ss.str();
+            glfwSetClipboardString(m_GLFWHandle.window(), str.c_str());
+          }
         }
+        ImGui::End();
       }
-      ImGui::End();
+
+      imguiRenderFrame();
+
+      glfwPollEvents(); // Poll for and process events
+
+      auto ellapsedTime = glfwGetTime() - seconds;
+      auto guiHasFocus =
+          ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard;
+      if (!guiHasFocus) {
+        cameraController.update(float(ellapsedTime));
+      }
+
+      m_GLFWHandle.swapBuffers(); // Swap front and back buffers
     }
-
-    imguiRenderFrame();
-
-    glfwPollEvents(); // Poll for and process events
-
-    auto ellapsedTime = glfwGetTime() - seconds;
-    auto guiHasFocus =
-        ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard;
-    if (!guiHasFocus) {
-      cameraController.update(float(ellapsedTime));
-    }
-
-    m_GLFWHandle.swapBuffers(); // Swap front and back buffers
   }
 
   // TODO clean up allocated GL data
 
+
+  std::cout << COLOR_MAGENTA << "ʕ༼◕  ౪  ◕✿༽ʔ    " << COLOR_RESET << "Good bye !" << std::endl;
+  std::cout << COLOR_BOLD << std::endl << "==============================================" << std::endl;
+  std::cout << "┗(＾0＾)┓ Leaving the application" << std::endl;
+  std::cout << "==============================================" << COLOR_RESET << std::endl << std::endl;
   return 0;
 }
 
