@@ -199,7 +199,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects( const tinygltf:
           // TODO Enable the vertex attrib array corresponding to POSITION with glEnableVertexAttribArray
           // (you need to use VERTEX_ATTRIB_POSITION_IDX which is defined at the top of the file)
           glEnableVertexAttribArray(vertexAttrib);
-          
+
           // TODO Bind the buffer object to GL_ARRAY_BUFFER
           glBindBuffer(GL_ARRAY_BUFFER, bufferObject);
 
@@ -329,11 +329,15 @@ int ViewerApplication::run()
     const std::function<void(int, const glm::mat4 &)> drawNode =
         [&](int nodeIdx, const glm::mat4 &parentMatrix) {
           // TODO The drawNode function
+          
         };
 
     // Draw the scene referenced by gltf file
     if (model.defaultScene >= 0) {
       // TODO Draw all nodes
+      for(const auto nodeIdx : model.scenes[model.defaultScene].nodes) {
+        drawNode(nodeIdx, glm::mat4(1));
+      }
     }
   };
 
