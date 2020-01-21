@@ -1,4 +1,5 @@
 #include "ViewerApplication.hpp"
+#include "cout_colors.hpp"
 
 #include <iostream>
 #include <numeric>
@@ -29,7 +30,7 @@ The method return value should correspond to what gltf returns.
 If there is errors or warning, print them.
 */
 bool ViewerApplication::loadGltfFile(tinygltf::Model & model) {
-  std::cout << " (つ•̀ᴥ•́)つ*:･ﾟ✧ Let's load some Models" << std::endl;
+  std::cout << COLOR_MAGENTA << "(つ•̀ᴥ•́)つ*:･ﾟ✧ " << COLOR_RESET << " Let's load some Models" << std::endl;
 
   // Define a loader
   tinygltf::TinyGLTF loader;
@@ -59,6 +60,46 @@ bool ViewerApplication::loadGltfFile(tinygltf::Model & model) {
   return ret;
 }
 
+
+/*
+Part 2 :
+Implement a method std::vector<GLuint> ViewerApplication::createBufferObjects( const tinygltf::Model &model);
+that compute the vector of buffer objects from a model and returns it.
+Call this functions in run() after loading the glTF.
+*/
+std::vector<GLuint> ViewerApplication::createBufferObjects( const tinygltf::Model &model) {
+  std::cout << COLOR_MAGENTA << "(つ•̀ᴥ•́)つ*:･ﾟ✧ " << COLOR_RESET << " Let's create a VBO" << std::endl;
+
+  // Create a vector of buffers objects
+  std::vector<GLuint> bufferObjects(model.buffers.size(), 0);
+
+  // Generate buffers
+  glGenBuffers(bufferObjects.size(), bufferObjects.data());
+
+  // Loop through all buffers of the model
+  for (size_t i = 0; i < model.buffers.size(); i++)  {
+
+    // Bind the corresponding buffer
+    glBindBuffer(GL_ARRAY_BUFFER, bufferObjects[i]);
+
+    // Fill in the datas from the model
+    // Reference : http://docs.gl/gl4/glBufferStorage
+    glBufferStorage(
+      GL_ARRAY_BUFFER, // GLenum target
+      model.buffers[i].data.size(), // GLsizeiptr size
+      model.buffers[i].data.data(), // const GLvoid * data
+      0 // GLbitfield flags
+    );
+  }
+
+  // After the loop, unbind glBindBuffer
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  return bufferObjects;
+}
+
+/*
+Main run method
+*/
 int ViewerApplication::run()
 {
   // Loader shaders
@@ -93,15 +134,26 @@ int ViewerApplication::run()
   }
 
   // TODO Loading the glTF file
-  // DONE
   tinygltf::Model model;
   bool loadingModelSuccess = loadGltfFile(model);
+  // Test
   if ( loadingModelSuccess ) {
-    std::cout << "ლ ( ◕  ᗜ  ◕ ) ლ Model loaded " << std::endl;
+    std::cout << COLOR_GREEN << "ლ ( ◕  ᗜ  ◕ ) ლ" << COLOR_RESET << " Model loaded" << COLOR_RESET << std::endl << std::endl;
+  } else {
+    std::cout << COLOR_RED << "ლ(ಥ Д ಥ )ლ " << COLOR_RESET << " Oh no !! Model failed to load" << COLOR_RESET << std::endl << std::endl;
   }
 
 
   // TODO Creation of Buffer Objects
+  std::vector<GLuint> VBO = createBufferObjects(model);
+
+  // Test : VBO size is the same as the model 
+  if (VBO.size() == model.buffers.size()) {
+    std::cout << COLOR_GREEN << "ლ ( ◕  ᗜ  ◕ ) ლ " << COLOR_RESET << " VBO created" << COLOR_RESET << std::endl << std::endl;
+  } else {
+    std::cout << COLOR_RED << "ლ(ಥ Д ಥ )ლ " << COLOR_RESET << " Oh no !! VBO were not created" << COLOR_RESET << std::endl << std::endl;
+  }
+
 
   // TODO Creation of Vertex Array Objects
 
