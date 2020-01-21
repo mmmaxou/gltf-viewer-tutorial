@@ -36,4 +36,5 @@ Or
 
 ```bash
 make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/DamagedHelmet/glTF/DamagedHelmet.gltf
+make -j && ./bin/gltf-viewer viewer ../glTF-Sample-Models/Sponza/glTF/Sponza.gltf
 ```

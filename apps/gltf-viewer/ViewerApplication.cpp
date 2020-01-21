@@ -11,6 +11,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/io.hpp>
 
+#include "utils/gltf.hpp"
 #include "utils/cameras.hpp"
 #include <stb_image_write.h>
 #include <tiny_gltf.h>
@@ -173,7 +174,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects( const tinygltf:
       std::vector<std::string> parameters {"POSITION", "NORMAL", "TEXCOORD_0"};
       std::vector<GLuint> vertexAttribEnum {VERTEX_ATTRIB_POSITION_IDX, VERTEX_ATTRIB_NORMAL_IDX, VERTEX_ATTRIB_TEXCOORD0_IDX};
 
-      for(size_t i = 0; i < 3; ++i) {
+      for (size_t i = 0; i < 3; ++i) {
         std::string parameter = parameters[i];
         GLuint vertexAttrib = vertexAttribEnum[i];
         // std::cout << "Parameter is " << parameter << std::endl;
@@ -297,7 +298,7 @@ int ViewerApplication::run()
   std::vector<GLuint> VBO = createBufferObjects(model);
   // Test : VBO size is the same as the model 
   if (VBO.size() == model.buffers.size()) {
-    std::cout << COLOR_GREEN << "ლ ( ◕  ᗜ  ◕ ) ლ " << COLOR_RESET << " VBO created" << COLOR_RESET << std::endl << std::endl;
+    std::cout << COLOR_GREEN << "ლ ( ◕  ᗜ  ◕ ) ლ " << COLOR_RESET << "VBO created" << COLOR_RESET << std::endl << std::endl;
   } else {
     std::cout << COLOR_RED << "ლ(ಥ Д ಥ )ლ " << COLOR_RESET << " Oh no !! VBO were not created" << COLOR_RESET << std::endl << std::endl;
   }
@@ -308,7 +309,8 @@ int ViewerApplication::run()
   std::vector<GLuint> VAO = createVertexArrayObjects(model, VBO, meshIndexToVaoRange);
   // Test NOT KNOWN ??
   if (VAO.size() != 0 ) {
-    std::cout << COLOR_GREEN << "ლ ( ◕  ᗜ  ◕ ) ლ " << COLOR_RESET << " VAO created" << COLOR_RESET << std::endl << std::endl;
+    std::cout << COLOR_GREEN << "ლ ( ◕  ᗜ  ◕ ) ლ " << COLOR_RESET << "VAO created" << COLOR_RESET << std::endl;
+    std::cout << COLOR_GREEN << "ლ ( ◕  ᗜ  ◕ ) ლ " << COLOR_RESET << "It contains " << VAO.size() << " meshes. Not bad." << COLOR_RESET << std::endl << std::endl;
   } else {
     std::cout << COLOR_RED << "ლ(ಥ Д ಥ )ლ " << COLOR_RESET << " Oh no !! VAO were not created" << COLOR_RESET << std::endl << std::endl;
   }
@@ -327,18 +329,129 @@ int ViewerApplication::run()
     // The recursive function that should draw a node
     // We use a std::function because a simple lambda cannot be recursive
     const std::function<void(int, const glm::mat4 &)> drawNode =
-        [&](int nodeIdx, const glm::mat4 &parentMatrix) {
-          // TODO The drawNode function
-          
-        };
+        [&](int nodeIdx, const glm::mat4 &parentMatrix)
+    {
+      // TODO The drawNode function
+
+      // Now we can attack the drawNode function.
+      // The first step is to get the node (as a tinygltf::Node)
+      // and to compute its model matrix from the parent matrix.
+      // Fortunately for you, I included a helper function getLocalToWorldMatrix(node, parentMatrix).
+      // If you are interested you can take a look at the code,
+      // its mostly calls to glm function to perform the right maths.
+      const auto & node = model.nodes[nodeIdx];
+      glm::mat4 modelMatrix = getLocalToWorldMatrix(node, parentMatrix);
+
+      // Then we need to ensure that the node has a mesh
+      if (node.mesh >= 0) {
+        // Compute modelViewMatrix
+        glm::mat4 modelViewMatrix = viewMatrix * modelMatrix;
+
+        // Compute modelViewProjectionMatrix
+        glm::mat4 modelViewProjectionMatrix = projMatrix * modelViewMatrix;
+
+        // Compute normalMatrix
+        glm::mat4 normalMatrix = glm::transpose(glm::inverse(modelViewMatrix));
+
+        // Send all of these to the shaders with glUniformMatrix4fv.
+        glUniformMatrix4fv(modelViewMatrixLocation, 1, GL_FALSE, (const GLfloat*) &modelViewMatrix);
+        glUniformMatrix4fv(modelViewProjMatrixLocation, 1, GL_FALSE, (const GLfloat*) &modelViewProjectionMatrix);
+        glUniformMatrix4fv(normalMatrixLocation, 1, GL_FALSE, (const GLfloat*) &normalMatrix);
+
+        // Get the mesh
+        const auto & mesh = model.meshes[node.mesh];
+
+        // To draw a primitive we need the VAO that we filled for it.
+        // Remember that we computed a vector meshIndexToVaoRange with the range of vertex array objects for each mesh
+        // (this range being an offset and an number of elements in the vertexArrayObjects vector).
+        // Each primitive of index primIdx of the mesh should has its corresponding VAO
+        // at vertexArrayObjects[vaoRange.begin + primIdx] if vaoRange is in the range of the mesh.
+        const auto vaoRange = meshIndexToVaoRange[node.mesh];
+
+        // Iterate over its primitives to draw them.
+        for (size_t primitiveIdx = 0; primitiveIdx < mesh.primitives.size(); ++primitiveIdx) {
+
+          // Get the VAO of the primitive (using vertexArrayObjects, the vaoRange and the primitive index) and bind it.
+          const auto & vao = VAO[vaoRange.begin + primitiveIdx];
+
+          // Get the current primitive.
+          const auto & primitive = mesh.primitives[primitiveIdx];
+
+          // Now we need to check if the primitive has indices by testing if (primitive.indices >= 0).
+          // If its the case we should use glDrawElements for the drawing,
+          // If not we should use glDrawArrays.
+
+          // Implement the first case, where the primitive has indices. 
+          if (primitive.indices >= 0) {
+
+            // You need to get the accessor of the indices (model.accessors[primitive.indices]) 
+            const auto & accessor = model.accessors[primitive.indices];
+            
+            // And the bufferView to compute the total byte offset to use for indices
+            const auto & bufferView = model.bufferViews[accessor.bufferView];
+            const auto byteOffset = bufferView.byteOffset + accessor.byteOffset; 
+
+            // You should then call glDrawElements with
+            // the mode of the primitive,
+            // the number of indices (accessor.count),
+            // the component type of indices (accessor.componentType)
+            // the byte offset as last argument (with a cast to const GLvoid*).
+            glBindVertexArray(vao);
+            glDrawElements(
+              static_cast<GLenum>(primitive.mode),
+              static_cast<GLsizei>(accessor.count),
+              static_cast<GLenum>(accessor.componentType),
+              (const GLvoid*)byteOffset
+            );
+          } else {
+
+            // Implement the second case, where the primitive does not have indices.
+
+            // For this you need the number of vertex to render.
+            // The specification of glTF tells us that we can use the accessor of an arbritrary attribute of the primitive.
+            const auto accessorIdx = (*begin(primitive.attributes)).second;
+            const auto &accessor = model.accessors[accessorIdx];
+
+            // And the bufferView to compute the total byte offset to use for indices
+            const auto & bufferView = model.bufferViews[accessor.bufferView];
+            const auto byteOffset = bufferView.byteOffset + accessor.byteOffset;
+
+            // Then call glDrawArrays, passing it
+            // the mode of the primitive,
+            // 0 as second argument,
+            // and accessor.count as last argument.
+            glDrawArrays(
+              static_cast<GLenum>(primitive.mode),
+              static_cast<GLint>(0),
+              static_cast<GLsizei>(accessor.count)
+            );
+          }
+        }
+      }
+
+      // We then have one last thing to implement,
+      // after the if (node.mesh >= 0) body:
+      // we need to draw children recursively.
+
+      // After the if body, add a loop over node.children
+      for (const auto nodeChildIdx : node.children) {
+        // Call drawNode on each children.
+        // The matrix passed as second argument should be the modelMatrix that has been computed earlier in the function.
+        drawNode(nodeChildIdx, modelMatrix);
+      }
+
+    };
 
     // Draw the scene referenced by gltf file
     if (model.defaultScene >= 0) {
       // TODO Draw all nodes
-      for(const auto nodeIdx : model.scenes[model.defaultScene].nodes) {
+      for (const auto nodeIdx : model.scenes[model.defaultScene].nodes) {
         drawNode(nodeIdx, glm::mat4(1));
       }
     }
+
+    // Unbind the vertex array
+    glBindVertexArray(0);
   };
 
   // Loop until the user closes the window
