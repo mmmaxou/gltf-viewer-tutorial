@@ -258,13 +258,21 @@ int ViewerApplication::run()
       compileProgram({m_ShadersRootPath / m_AppName / m_vertexShader,
           m_ShadersRootPath / m_AppName / m_fragmentShader});
 
-  const auto modelViewProjMatrixLocation =
-      glGetUniformLocation(glslProgram.glId(), "uModelViewProjMatrix");
-  const auto modelViewMatrixLocation =
-      glGetUniformLocation(glslProgram.glId(), "uModelViewMatrix");
-  const auto normalMatrixLocation =
-      glGetUniformLocation(glslProgram.glId(), "uNormalMatrix");
+  const auto modelViewProjMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewProjMatrix");
+  const auto modelViewMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewMatrix");
+  const auto normalMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uNormalMatrix");
 
+  // We now need to send the light parameters from the application.
+  // For that we need to get uniform locations with glGetUniformLocation at the begining of run() (like other uniforms).
+  const auto uniformLightDirection = glGetUniformLocation(glslProgram.glId(), "uLightDirection");
+  const auto uniformLightRadiance = glGetUniformLocation(glslProgram.glId(), "uLightRadiance");
+
+  // Declare and initialize two glm::vec3 variables lightDirection and lightIntensity.
+  glm::vec3 lightDirection(1.f, 1.f, 1.f);
+  glm::vec3 lightRadiance(0.1f, 0.2f, 0.8f);
+
+  // Shall use lighting from camera
+  bool useLightFromCamera = false;
 
   // TODO Loading the glTF file
   tinygltf::Model model;
@@ -371,6 +379,25 @@ int ViewerApplication::run()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     const auto viewMatrix = camera.getViewMatrix();
+
+    // Then in the render loop we need to set our uniforms with glUniform3f.
+    // For the light direction, we must be careful to
+    //    Muliply it with the view matrix,
+    //    And normalize it,
+    // before sending it to the shader.
+    // Otherwise, we will see the light move as we move the camera, and that's not what we want of course.
+
+    const auto lightDirectionViewSpace = glm::normalize(glm::vec3(viewMatrix * glm::vec4(lightDirection, 0.)));
+    if ( uniformLightDirection >= 0 ) {
+      if ( useLightFromCamera ) {
+        glUniform3f(uniformLightDirection, 0, 0, 1);
+      } else {
+        glUniform3f(uniformLightDirection, lightDirectionViewSpace.x, lightDirectionViewSpace.y, lightDirectionViewSpace.z);
+      }
+    }
+    if ( uniformLightRadiance >= 0 )  {
+      glUniform3f(uniformLightRadiance, lightRadiance.r, lightRadiance.g, lightRadiance.b);
+    }
 
     // The recursive function that should draw a node
     // We use a std::function because a simple lambda cannot be recursive
@@ -529,10 +556,8 @@ int ViewerApplication::run()
     std::cout << COLOR_MAGENTA << "(つ•̀ᴥ•́)つ*:･ﾟ✧ " << COLOR_RESET << " Let's run in interactive mode !" << std::endl;
 
     // Loop until the user closes the window
-    for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose();
-        ++iterationCount) {
+    for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose(); ++iterationCount) {      
       const auto seconds = glfwGetTime();
-
       const auto camera = cameraController->getCamera();
       drawScene(camera);
 
@@ -582,6 +607,39 @@ int ViewerApplication::run()
           }
         }
         cameraController->setCamera(camera);
+
+        // Add a checkbox "light from camera" that control a boolean.
+        // If set, then send (0, 0, 1) instead of lightDirection in the drawing function for the uniform controlling the light direction.
+        static bool c = false;
+        if ( ImGui::Checkbox("Use lighting from the camera", &c) ) {
+          useLightFromCamera = c;
+          std::cout << "Updated checkbox is now " << useLightFromCamera << std::endl;
+        }
+
+        // In the GUI, add a new section "Light" (with ImGui::CollapsingHeader())
+        if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen)) {
+
+          // containing two sliders for θ (between 0 and π) and ϕ (between 0 and 2π) angles.
+          // When they are changed, compute lightDirection from them using the above formula.
+            static float theta = 1.0f;
+            static float phi = 1.0f;
+            const auto hasChanged = ImGui::SliderFloat("Theta θ", &theta, 0, 3.14) ||
+                                    ImGui::SliderFloat("Phi ϕ", &phi, 0, 6.28);
+            if ( hasChanged ) {
+              // ωi=(sinθcosϕ,cosθ,sinθsinϕ)
+              lightDirection = glm::vec3( sin(theta) * cos(phi),
+                                            cos(theta),
+                                            sin(theta) * sin(phi));
+            }
+
+            // Add a ImGui::ColorEdit3 to specify a color and an input float for the intensity factor.
+            // If they are changed, update lightIntensity with their product.
+            static float color[3] = { lightRadiance.r, lightRadiance.g, lightRadiance.b };
+            if ( ImGui::ColorEdit3("Light color", color) ) {
+              lightRadiance = glm::vec3(color[0], color[1], color[2]);
+            }
+        }
+
 
         ImGui::End();
       }
