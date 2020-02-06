@@ -309,7 +309,10 @@ int ViewerApplication::run()
 
   // TODO Implement a new CameraController model and use it instead. Propose the
   // choice from the GUI
-  FirstPersonCameraController cameraController{m_GLFWHandle.window(), 1.5f * maxDistance};
+  // FirstPersonCameraController cameraController{m_GLFWHandle.window(), 1.5f * maxDistance};
+
+  // TODO In ViewerApplication::run() replace the FirstPersonCameraController by a TrackballCameraController.
+  TrackballCameraController cameraController{m_GLFWHandle.window(), 0.5f * maxDistance};
   if (m_hasUserCamera) {
     cameraController.setCamera(m_userCamera);
   } else {
@@ -563,8 +566,7 @@ int ViewerApplication::run()
       glfwPollEvents(); // Poll for and process events
 
       auto ellapsedTime = glfwGetTime() - seconds;
-      auto guiHasFocus =
-          ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard;
+      auto guiHasFocus = ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard;
       if (!guiHasFocus) {
         cameraController.update(float(ellapsedTime));
       }
