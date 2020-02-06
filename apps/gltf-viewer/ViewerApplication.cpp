@@ -312,9 +312,17 @@ int ViewerApplication::run()
   // FirstPersonCameraController cameraController{m_GLFWHandle.window(), 1.5f * maxDistance};
 
   // TODO In ViewerApplication::run() replace the FirstPersonCameraController by a TrackballCameraController.
-  TrackballCameraController cameraController{m_GLFWHandle.window(), 0.5f * maxDistance};
+  // TrackballCameraController cameraController{m_GLFWHandle.window(), 0.5f * maxDistance};
+
+  // If we want to easily switch between our two controllers,
+  // we need to manipulate a pointer to a CameraController instead of a variable to a concrete type in our run() method.
+  // We will use dynamic allocation and std::unique_ptr for that.
+
+  std::unique_ptr<CameraController> cameraController = 
+    std::make_unique<TrackballCameraController>(m_GLFWHandle.window(), 1.5f * maxDistance);
+
   if (m_hasUserCamera) {
-    cameraController.setCamera(m_userCamera);
+    cameraController->setCamera(m_userCamera);
   } else {
     // TODO Use scene bounds to compute a better default camera
 
@@ -323,10 +331,10 @@ int ViewerApplication::run()
     // We will only handle flat scenes on the z axis.
     if ( bboxMax.z - bboxMin.z < 0.001f ) {
       // The scene is flat
-      cameraController.setCamera(Camera{center + 2.f * glm::cross(diagonal, up), center, up});
+      cameraController->setCamera(Camera{center + 2.f * glm::cross(diagonal, up), center, up});
     } else {
       // The scene is not flat
-      cameraController.setCamera(Camera{center + diagonal, center, up});
+      cameraController->setCamera(Camera{center + diagonal, center, up});
     }
   }
 
@@ -499,7 +507,7 @@ int ViewerApplication::run()
     // Render to image
     std::vector<unsigned char> pixels( m_nWindowWidth * m_nWindowHeight * 3);
     renderToImage(m_nWindowWidth, m_nWindowHeight, 3, pixels.data(), [&]() {
-      drawScene(cameraController.getCamera());
+      drawScene(cameraController->getCamera());
     });
 
     // Flip the image vertically, because OpenGL does not use the same convention for that than png files.
@@ -525,7 +533,7 @@ int ViewerApplication::run()
         ++iterationCount) {
       const auto seconds = glfwGetTime();
 
-      const auto camera = cameraController.getCamera();
+      const auto camera = cameraController->getCamera();
       drawScene(camera);
 
       // GUI code:
@@ -558,6 +566,23 @@ int ViewerApplication::run()
             glfwSetClipboardString(m_GLFWHandle.window(), str.c_str());
           }
         }
+
+        // Finally, we will add the possibility to switch between the two controllers using radio buttons in the GUI
+        static int radioButtonToggleState = 0;
+        ImGui::Text("Change the CameraController type");
+        const auto c1 = ImGui::RadioButton("Trackball", &radioButtonToggleState, 0);
+        ImGui::SameLine();
+        const auto c2 = ImGui::RadioButton("First person", &radioButtonToggleState, 1);
+        const auto hasChanged = c1 || c2;
+        if ( hasChanged ) {
+          if (radioButtonToggleState == 0) {
+            cameraController = std::make_unique<TrackballCameraController>(m_GLFWHandle.window(), 1.5f * maxDistance);
+          } else if (radioButtonToggleState == 1) {
+            cameraController = std::make_unique<FirstPersonCameraController>(m_GLFWHandle.window(), 1.5f * maxDistance);
+          }
+        }
+        cameraController->setCamera(camera);
+
         ImGui::End();
       }
 
@@ -568,7 +593,7 @@ int ViewerApplication::run()
       auto ellapsedTime = glfwGetTime() - seconds;
       auto guiHasFocus = ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard;
       if (!guiHasFocus) {
-        cameraController.update(float(ellapsedTime));
+        cameraController->update(float(ellapsedTime));
       }
 
       m_GLFWHandle.swapBuffers(); // Swap front and back buffers
