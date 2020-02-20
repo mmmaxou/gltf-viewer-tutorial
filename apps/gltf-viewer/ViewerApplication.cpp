@@ -266,10 +266,18 @@ int ViewerApplication::run()
   // For that we need to get uniform locations with glGetUniformLocation at the begining of run() (like other uniforms).
   const auto uniformLightDirection = glGetUniformLocation(glslProgram.glId(), "uLightDirection");
   const auto uniformLightRadiance = glGetUniformLocation(glslProgram.glId(), "uLightRadiance");
+  
+  // The first step is to get the uniform location of uBaseColorTexture.
+  const auto uniformBaseColorTexture = glGetUniformLocation(glslProgram.glId(), "uBaseColorTexture");
+  const auto uniformBaseColorFactor = glGetUniformLocation(glslProgram.glId(), "uBaseColorFactor");
+  const auto uniformMetallicFactor = glGetUniformLocation(glslProgram.glId(), "uMetallicFactor");
+  const auto uniformRougnessFactor = glGetUniformLocation(glslProgram.glId(), "uRougnessFactor");
+  const auto uniformMetallicRoughnessTexture = glGetUniformLocation(glslProgram.glId(), "uMetallicRoughnessTexture");
+
 
   // Declare and initialize two glm::vec3 variables lightDirection and lightIntensity.
   glm::vec3 lightDirection(1.f, 1.f, 1.f);
-  glm::vec3 lightRadiance(0.1f, 0.2f, 0.8f);
+  glm::vec3 lightRadiance(2.f, 2.f, 2.f);
 
   // Shall use lighting from camera
   bool useLightFromCamera = false;
@@ -354,7 +362,30 @@ int ViewerApplication::run()
   // Store the result in a vector textureObjects.
   std::vector<GLuint> textureObjects = createTextureObjects(model);
 
-
+  // After the call, create a single texture object with a variable GLuint whiteTexture to reference it.
+  // Fill it with a single white RGBA pixel (float white[] = {1, 1, 1, 1};)
+  // and set sampling parameters to GL_LINEAR and wrapping parameters to GL_REPEAT.
+  // This texture will be used for the base color of objects that have no materials
+  // (as specified in the glTF specification, if no base color texture is present, we should use white).
+  GLuint whiteTexture;
+  float white[] = {1, 1, 1, 1};
+  glGenTextures(1, &whiteTexture);
+  glBindTexture(GL_TEXTURE_2D, whiteTexture);
+  glTexImage2D( GL_TEXTURE_2D,
+                0,
+                GL_RGBA,
+                1, // width
+                1, // height
+                0,
+                GL_RGBA,
+                GL_FLOAT,
+                &white);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+  glBindTexture(GL_TEXTURE_2D, 0);
 
   // TODO Creation of Buffer Objects
   std::vector<GLuint> VBO = createBufferObjects(model);
@@ -380,6 +411,61 @@ int ViewerApplication::run()
   // Setup OpenGL state for rendering
   glEnable(GL_DEPTH_TEST);
   glslProgram.use();
+
+  // In order to have a more or less clean implementation,
+  // we will implement the texture binding in a specific lambda function bindMaterial(int materialIdx)
+  const auto bindMaterial = [&](const auto materialIndex) {
+    // Material binding
+    if ( materialIndex >= 0 ) {
+      const auto &material = model.materials[materialIndex];
+      const auto &pbrMetallicRoughness = material.pbrMetallicRoughness;
+      if ( pbrMetallicRoughness.baseColorTexture.index >= 0 ) {
+        const auto &texture = model.textures[pbrMetallicRoughness.baseColorTexture.index];
+        
+        // std::cout << textureObjects[pbrMetallicRoughness.baseColorTexture.index] << std::endl;
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, textureObjects[pbrMetallicRoughness.baseColorTexture.index]);
+        glUniform1i(uniformBaseColorTexture, 0);
+        glUniform4f(uniformBaseColorFactor,
+          (float)pbrMetallicRoughness.baseColorFactor[0],
+          (float)pbrMetallicRoughness.baseColorFactor[1],
+          (float)pbrMetallicRoughness.baseColorFactor[2],
+          (float)pbrMetallicRoughness.baseColorFactor[3]);
+      } else {
+        // Default to white texture
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, whiteTexture);
+        glUniform1i(uniformBaseColorTexture, 0);
+        glUniform4f(uniformBaseColorFactor, 1, 1, 1, 1);
+      }
+
+      if ( pbrMetallicRoughness.metallicRoughnessTexture.index >= 0 ) {
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, textureObjects[pbrMetallicRoughness.metallicRoughnessTexture.index]);
+        glUniform1i(uniformMetallicRoughnessTexture, 1);
+        glUniform1f(uniformMetallicFactor, pbrMetallicRoughness.metallicFactor || 1.f);
+        glUniform1f(uniformRougnessFactor, pbrMetallicRoughness.roughnessFactor || 1.f);
+      }
+
+      return;
+
+    }
+
+    // Default to white texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+    glUniform1i(uniformBaseColorTexture, 0);
+    glUniform4f(uniformBaseColorFactor, 1, 1, 1, 1);
+
+    // Default to no MetallicRoughness
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glUniform1i(uniformMetallicRoughnessTexture, 1);
+    glUniform1f(uniformMetallicFactor, 1.f);
+    glUniform1f(uniformRougnessFactor, 1.f);
+    
+  };
 
   // Lambda function to draw the scene
   const auto drawScene = [&](const Camera &camera) {
@@ -470,7 +556,11 @@ int ViewerApplication::run()
             
             // And the bufferView to compute the total byte offset to use for indices
             const auto & bufferView = model.bufferViews[accessor.bufferView];
-            const auto byteOffset = bufferView.byteOffset + accessor.byteOffset; 
+            const auto byteOffset = bufferView.byteOffset + accessor.byteOffset;
+
+            // In the drawScene lambda function, just before drawing a specific primitive (before binding its VAO),
+            // add a call to bindMaterial with the material index of the primitive as argument.
+            bindMaterial(primitive.material);
 
             // You should then call glDrawElements with
             // the mode of the primitive,
@@ -621,7 +711,6 @@ int ViewerApplication::run()
         static bool c = false;
         if ( ImGui::Checkbox("Use lighting from the camera", &c) ) {
           useLightFromCamera = c;
-          std::cout << "Updated checkbox is now " << useLightFromCamera << std::endl;
         }
 
         // In the GUI, add a new section "Light" (with ImGui::CollapsingHeader())
@@ -728,4 +817,64 @@ This method should compute a vector of texture objects. Each texture object is f
 */
 std::vector<GLuint> ViewerApplication::createTextureObjects(const tinygltf::Model &model) const {
 
+  // When a filter is undefined, we use GL_LINEAR as default filter.
+  // And when no sampler is defined for the texture (in that case we have texture.sampler == -1),
+  // we use a default sampler defined as:
+  tinygltf::Sampler defaultSampler;
+  defaultSampler.minFilter = GL_LINEAR;
+  defaultSampler.magFilter = GL_LINEAR;
+  defaultSampler.wrapS = GL_REPEAT;
+  defaultSampler.wrapT = GL_REPEAT;
+  defaultSampler.wrapR = GL_REPEAT;
+
+  // Gen texture
+  std::vector<GLuint> textures;
+
+  // This code example shows how to fill a texture object using an image from tinygltf
+  for(const auto &texture : model.textures) {
+    assert(texture.source >= 0);
+    const auto &image = model.images[texture.source];
+    GLuint textureIdx;
+    glGenTextures(1, &textureIdx);
+
+    glBindTexture(GL_TEXTURE_2D, textureIdx);
+    glTexImage2D( GL_TEXTURE_2D,
+                  0,
+                  GL_RGBA,
+                  image.width,
+                  image.height,
+                  0,
+                  GL_RGBA,
+                  image.pixel_type,
+                  image.image.data());
+
+    // The constant number here correspond to OpenGL constants such as GL_LINEAR, NEAREST_MIPMAP_NEAREST, GL_REPEAT, etc.
+    // It means we can directly use the values to setup texture sampling with the OpenGL API:
+    const auto &sampler = texture.sampler >= 0 ? model.samplers[texture.sampler] : defaultSampler;
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_MIN_FILTER,
+                    sampler.minFilter != -1 ? sampler.minFilter : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_MAG_FILTER,
+                    sampler.magFilter != -1 ? sampler.magFilter : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, sampler.wrapS);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, sampler.wrapT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, sampler.wrapR);
+
+    // Some samplers use mipmapping for their minification filter.
+    // In that case, the specification tells us we need to have mipmaps computed for the texture. 
+    // OpenGL can compute them for us
+    if (sampler.minFilter == GL_NEAREST_MIPMAP_NEAREST ||
+      sampler.minFilter == GL_NEAREST_MIPMAP_LINEAR ||
+      sampler.minFilter == GL_LINEAR_MIPMAP_NEAREST ||
+      sampler.minFilter == GL_LINEAR_MIPMAP_LINEAR) {
+      glGenerateMipmap(GL_TEXTURE_2D);
+    }
+
+    // Push back to the vector
+    textures.push_back(textureIdx);
+  }
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+  return textures;
 }
