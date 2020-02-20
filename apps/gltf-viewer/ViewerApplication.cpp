@@ -347,6 +347,14 @@ int ViewerApplication::run()
   }
 
 
+  // Add a call to your method in the run() method,
+  // in the initialization step,
+  // before the drawing loop
+  // (for example, before the call to createBufferObjects).
+  // Store the result in a vector textureObjects.
+  std::vector<GLuint> textureObjects = createTextureObjects(model);
+
+
 
   // TODO Creation of Buffer Objects
   std::vector<GLuint> VBO = createBufferObjects(model);
@@ -712,4 +720,12 @@ ViewerApplication::ViewerApplication(
   glfwSetKeyCallback(m_GLFWHandle.window(), keyCallback);
 
   printGLVersion();
+}
+
+
+/*
+This method should compute a vector of texture objects. Each texture object is filled with an image and sampling parameters from the corresponding texture of the glTF file. This step basically consists of picking code examples from this section and putting them in a loop in order to initialize each texture object.
+*/
+std::vector<GLuint> ViewerApplication::createTextureObjects(const tinygltf::Model &model) const {
+
 }
