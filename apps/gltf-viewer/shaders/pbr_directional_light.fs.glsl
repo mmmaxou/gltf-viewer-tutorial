@@ -4,9 +4,8 @@ in vec3 vViewSpacePosition;
 in vec3 vViewSpaceNormal;
 in vec2 vTexCoords;
 
-in vec3 vTangentLightPos;
-in vec3 vTangentViewPos;
-in vec3 vTangentFragPos;
+in vec3 vTangentLightDirection;
+in vec3 vTangentPosition;
 
 uniform vec3 uLightDirection;
 uniform vec3 uLightRadiance;

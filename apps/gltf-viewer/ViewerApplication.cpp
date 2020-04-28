@@ -134,6 +134,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
   const GLuint VERTEX_ATTRIB_POSITION_IDX = 0;
   const GLuint VERTEX_ATTRIB_NORMAL_IDX = 1;
   const GLuint VERTEX_ATTRIB_TEXCOORD0_IDX = 2;
+  const GLuint VERTEX_ATTRIB_TANGENT_IDX = 3;
 
   // In the function declare std::vector<GLuint> vertexArrayObjects;
   // This vector will contain our vertex array objects.
@@ -226,6 +227,7 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
           );
         }
       } // </>End vertex attribution loop
+      
 
       // The last thing we need in our inner loop is to set the index buffer of the vertex array object, if one exists.
       // For that you need to check if primitive.indices >= 0.
