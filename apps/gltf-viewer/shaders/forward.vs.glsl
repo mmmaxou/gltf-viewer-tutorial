@@ -8,40 +8,19 @@ layout(location = 3) in vec3 aTangent;
 out vec3 vViewSpacePosition;
 out vec3 vViewSpaceNormal;
 out vec2 vTexCoords;
-out vec3 vTangentLightDirection;
-out vec3 vTangentPosition;
+out vec3 vTangent;
+out vec3 vNormal;
 
 uniform mat4 uModelViewProjMatrix;
 uniform mat4 uModelViewMatrix;
+uniform mat4 uModelMatrix;
 uniform mat4 uNormalMatrix;
-uniform vec3 uLightDirection;
-uniform bool uNormalMapUse;
 
-void main()
-{
-
+void main() {
   vViewSpacePosition = vec3(uModelViewMatrix * vec4(aPosition, 1));
+  vViewSpaceNormal = normalize(vec3(uNormalMatrix * vec4(aNormal, 0)));
   vTexCoords = aTexCoords;
-
-  if(uNormalMapUse) {
-    // Tutorial used
-    // https://learnopengl.com/Advanced-Lighting/Normal-Mapping
-    // Compute the TBN matrix
-
-    // Solution 2:
-    // send a tangent-space light position, view position, and vertex position to the fragment shader
-    mat3 normalMatrix = mat3(uNormalMatrix);
-    vec3 T = normalize(normalMatrix * aTangent);
-    vec3 N = normalize(normalMatrix * aNormal);
-    T = normalize(T - dot(T, N) * N);
-    vec3 B = cross(N, T);
-    mat3 TBN = transpose(mat3(T, B, N));
-
-    vTangentLightDirection = TBN * uLightDirection;
-    vTangentPosition  = TBN * vViewSpacePosition;
-  } else {
-    vViewSpaceNormal = normalize(vec3(uNormalMatrix * vec4(aNormal, 0)));
-  }
-
+  vTangent = aTangent;
+  vNormal = aNormal;
   gl_Position =  uModelViewProjMatrix * vec4(aPosition, 1);
 }

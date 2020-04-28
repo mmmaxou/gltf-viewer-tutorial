@@ -136,6 +136,9 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
   const GLuint VERTEX_ATTRIB_TEXCOORD0_IDX = 2;
   const GLuint VERTEX_ATTRIB_TANGENT_IDX = 3;
 
+  // Init the tangent checker
+  bool hasTangent = true;
+
   // In the function declare std::vector<GLuint> vertexArrayObjects;
   // This vector will contain our vertex array objects.
   // Take note that I don't give a size, because we don't know it yet.
@@ -193,9 +196,10 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
         GLuint vertexAttrib = vertexAttribEnum[i];
         // std::cout << "Parameter is " << parameter << std::endl;
         // std::cout << "Vertex Attrib  is " << vertexAttrib << std::endl;
-        
+
         // Now inside that new loop we will need to enable and initialize the parameters for each vertex attribute (POSITION, NORMAL, TEXCOORD_0).
         const auto iterator = primitive.attributes.find(parameter);
+        if (iterator != end(primitive.attributes))
         if (iterator != end(primitive.attributes))
         {
           // If parameter(i.e. "POSITION") has been found in the map
@@ -234,6 +238,12 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
         }
       } // </>End vertex attribution loop
       
+      // Also check if primitive contains TANGENT
+      bool primitiveHasTangent = primitive.attributes.find("TANGENT") != primitive.attributes.end();
+      if (!primitiveHasTangent) {
+        hasTangent = false;
+        std::cout << COLOR_CYAN << "(ʘᗩʘ’)" << COLOR_RESET << " Primitive don't provides tangents data." << std::endl;
+      }
 
       // The last thing we need in our inner loop is to set the index buffer of the vertex array object, if one exists.
       // For that you need to check if primitive.indices >= 0.
@@ -252,6 +262,10 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
       }
     } // </>End Primitive loop
   }   // </>End Mesh loop
+
+  if (!hasTangent) {
+    std::cout << COLOR_CYAN << "(ʘᗩʘ’)" << COLOR_RESET << " Model don't provides tangents data. Fallback to GPU computing. " << std::endl;
+  }
 
   // End the description of our vertex array object:
   glBindVertexArray(0);
@@ -344,9 +358,10 @@ int ViewerApplication::run()
       compileProgram({m_ShadersRootPath / m_AppName / m_vertexShader,
                       m_ShadersRootPath / m_AppName / m_fragmentShader});
 
-  const auto modelViewProjMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewProjMatrix");
-  const auto modelViewMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uModelViewMatrix");
-  const auto normalMatrixLocation = glGetUniformLocation(glslProgram.glId(), "uNormalMatrix");
+  const auto uniformModelViewProjMatrix = glGetUniformLocation(glslProgram.glId(), "uModelViewProjMatrix");
+  const auto uniformModelViewMatrix = glGetUniformLocation(glslProgram.glId(), "uModelViewMatrix");
+  const auto uniformNormalMatrix = glGetUniformLocation(glslProgram.glId(), "uNormalMatrix");
+  const auto uniformModelMatrix = glGetUniformLocation(glslProgram.glId(), "uModelMatrix");
 
   // We now need to send the light parameters from the application.
   // For that we need to get uniform locations with glGetUniformLocation at the begining of run() (like other uniforms).
@@ -740,9 +755,10 @@ int ViewerApplication::run()
             glm::mat4 normalMatrix = glm::transpose(glm::inverse(modelViewMatrix));
 
             // Send all of these to the shaders with glUniformMatrix4fv.
-            glUniformMatrix4fv(modelViewMatrixLocation, 1, GL_FALSE, (const GLfloat *)&modelViewMatrix);
-            glUniformMatrix4fv(modelViewProjMatrixLocation, 1, GL_FALSE, (const GLfloat *)&modelViewProjectionMatrix);
-            glUniformMatrix4fv(normalMatrixLocation, 1, GL_FALSE, (const GLfloat *)&normalMatrix);
+            glUniformMatrix4fv(uniformModelMatrix, 1, GL_FALSE, (const GLfloat *)&modelMatrix);
+            glUniformMatrix4fv(uniformModelViewMatrix, 1, GL_FALSE, (const GLfloat *)&modelViewMatrix);
+            glUniformMatrix4fv(uniformNormalMatrix, 1, GL_FALSE, (const GLfloat *)&normalMatrix);
+            glUniformMatrix4fv(uniformModelViewProjMatrix, 1, GL_FALSE, (const GLfloat *)&modelViewProjectionMatrix);
 
             // Get the mesh
             const auto &mesh = model.meshes[node.mesh];

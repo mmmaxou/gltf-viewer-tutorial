@@ -3,9 +3,8 @@
 in vec3 vViewSpacePosition;
 in vec3 vViewSpaceNormal;
 in vec2 vTexCoords;
-
-in vec3 vTangentLightDirection;
-in vec3 vTangentPosition;
+in vec3 vTangent;
+in vec3 vNormal;
 
 uniform vec3 uLightDirection;
 uniform vec3 uLightRadiance;
@@ -26,6 +25,9 @@ uniform float uOcclusionStrength;
 uniform sampler2D uNormalMapTexture;
 uniform float uNormalMapScale;
 uniform bool uNormalMapUse;
+
+uniform mat4 uModelViewMatrix;
+uniform mat4 uModelMatrix;
 
 out vec3 fColor;
 
@@ -57,20 +59,40 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 
 void main()
 {
-  vec3 N, L, V;
+  vec3 N;
 
   if (uNormalMapUse) {
     N = texture(uNormalMapTexture, vTexCoords).rgb;
     N = N * 2.0 - 1.0;
     N = N * vec3(uNormalMapScale, uNormalMapScale, 1.0);
-    L = vTangentLightDirection;
-    V = normalize(-vTangentPosition);
+    mat3 TBN;
+    if (vTangent == vec3(0,0,0)) {
+      // Compute TBN Matrix from GPU
+      vec3 posdFdx = dFdx(vViewSpacePosition);
+      vec3 posdFdy = dFdy(vViewSpacePosition);
+      vec2 texdFdx = dFdx(vTexCoords);
+      vec2 texdFdy = dFdy(vTexCoords);
+      vec3 T = normalize(texdFdy.y * posdFdx - texdFdx.y * posdFdx);
+      vec3 N = vViewSpaceNormal;
+      T = normalize(cross(cross(N, T), N));
+      T = normalize(T - dot(T, N) * N);
+      vec3 B = cross(N, T);
+      TBN = mat3(T, B, N);
+    } else {
+      // Use tangent values provided
+      vec3 T = normalize(vec3(uModelViewMatrix * vec4(vTangent, 0.0)));
+      vec3 N = normalize(vec3(uModelViewMatrix * vec4(vNormal, 0.0)));
+      T = normalize(T - dot(T, N) * N);
+      vec3 B = cross(N, T);
+      TBN = mat3(T, B, N);
+    }
+    N = normalize(TBN * N); 
   } else {
     N = normalize(vViewSpaceNormal);
-    L = uLightDirection;
-    V = normalize(-vViewSpacePosition);
   }
 
+  vec3 L = uLightDirection;
+  vec3 V = normalize(-vViewSpacePosition);
   vec3 H = normalize(L + V);
 
   // Dots
