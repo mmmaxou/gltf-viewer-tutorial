@@ -10,14 +10,13 @@ class ViewerApplication
 {
 public:
   ViewerApplication(const fs::path &appPath, uint32_t width, uint32_t height,
-      const fs::path &gltfFile, const std::vector<float> &lookatArgs,
-      const std::string &vertexShader, const std::string &fragmentShader,
-      const fs::path &output);
+                    const fs::path &gltfFile, const std::vector<float> &lookatArgs,
+                    const std::string &vertexShader, const std::string &fragmentShader,
+                    const fs::path &output);
 
   int run();
 
 private:
-
   /**
    * Struct
    */
@@ -32,13 +31,15 @@ private:
   /**
    * Methods
    */
-  
-  bool loadGltfFile(tinygltf::Model & model);
-  std::vector<GLuint> createBufferObjects( const tinygltf::Model &model);
-  std::vector<GLuint> createVertexArrayObjects( const tinygltf::Model &model,
-                                                const std::vector<GLuint> &bufferObjects,
-                                                std::vector<VaoRange> & meshIndexToVaoRange);
+
+  bool loadGltfFile(tinygltf::Model &model);
+  std::vector<GLuint> createBufferObjects(const tinygltf::Model &model);
+  std::vector<GLuint> createVertexArrayObjects(const tinygltf::Model &model,
+                                               const std::vector<GLuint> &bufferObjects,
+                                               std::vector<VaoRange> &meshIndexToVaoRange);
   std::vector<GLuint> createTextureObjects(const tinygltf::Model &model) const;
+  std::vector<GLuint> createNormalMap(const tinygltf::Model &model,
+                                      const std::vector<GLuint> &bufferObjects) const;
 
   /**
    * Attributes
@@ -65,8 +66,8 @@ private:
   const std::string m_ImGuiIniFilename;
   // Last to be initialized, first to be destroyed:
   GLFWHandle m_GLFWHandle{int(m_nWindowWidth), int(m_nWindowHeight),
-      "glTF Viewer",
-      m_OutputPath.empty()}; // show the window only if m_OutputPath is empty
+                          "glTF Viewer",
+                          m_OutputPath.empty()}; // show the window only if m_OutputPath is empty
   /*
     ! THE ORDER OF DECLARATION OF MEMBER VARIABLES IS IMPORTANT !
     - m_ImGuiIniFilename.c_str() will be used by ImGUI in ImGui::Shutdown, which

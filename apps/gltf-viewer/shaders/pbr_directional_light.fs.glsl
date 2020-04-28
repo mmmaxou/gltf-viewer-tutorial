@@ -14,6 +14,12 @@ uniform float uMetallicFactor;
 uniform float uRougnessFactor;
 uniform sampler2D uMetallicRoughnessTexture;
 
+uniform sampler2D uEmissiveTexture;
+uniform vec3 uEmissiveFactor;
+
+uniform sampler2D uOcclusionTexture;
+uniform float uOcclusionStrength;
+
 out vec3 fColor;
 
 // Constants
@@ -70,10 +76,22 @@ void main()
   float alpha = roughness * roughness;
   float alpha_2 = alpha * alpha;
 
-
   // Metallic-Roughness model
   vec3 C_diffuse = mix(baseColor.rgb * (1 - dielectricSpecular.r), black, metallic);
   vec3 F0 = mix(dielectricSpecular, baseColor.rgb, metallic);
+
+  // Emissive texture
+  vec3 emissive = vec3(0);
+  emissive = SRGBtoLINEAR(texture(uEmissiveTexture, vTexCoords)).rgb;
+  emissive *= uEmissiveFactor;
+
+  // Occlusion texture
+  // The occlusion map texture. The occlusion values are sampled from the R channel.
+  // Higher values indicate areas that should receive full indirect lighting and lower values indicate no indirect lighting.
+  // These values are linear.
+  // If other channels are present (GBA), they are ignored for occlusion calculations.
+  vec4 occlusionTexture = texture(uOcclusionTexture, vTexCoords);
+  float occlusionSampled = occlusionTexture.r;
 
   // Surface Reflection Ratio (F)
   // Fresnel Schlick
@@ -100,8 +118,15 @@ void main()
   vec3 f_diffuse = (1 - F) * diffuse;
   vec3 f_specular = F * Vis * D;
   vec3 f = f_diffuse + f_specular;
+  vec3 color = f * uLightRadiance * NdotL;
 
-  // fColor = LINEARtoSRGB(diffuse);
-  fColor = LINEARtoSRGB(f * uLightRadiance * NdotL);
-  //fColor = vec3(1, 0, 0) * uLightRadiance;
+  // Add occlusion
+  color = mix(color, color * occlusionSampled, uOcclusionStrength);
+
+  // Mix
+  fColor = LINEARtoSRGB(color);
+
+  // Add emissive
+  fColor += emissive;
+
 }

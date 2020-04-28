@@ -14,8 +14,21 @@ uniform mat4 uNormalMatrix;
 
 void main()
 {
-    vViewSpacePosition = vec3(uModelViewMatrix * vec4(aPosition, 1));
-	vViewSpaceNormal = normalize(vec3(uNormalMatrix * vec4(aNormal, 0)));
-	vTexCoords = aTexCoords;
-    gl_Position =  uModelViewProjMatrix * vec4(aPosition, 1);
+  // Tutorial used
+  // https://learnopengl.com/Advanced-Lighting/Normal-Mapping
+  // Modified to compute everything on the gpu
+  // We first calculate the first triangle's edges and delta UV coordinates
+
+
+
+  // Compute the TBN matrix
+  //vec3 T = normalize(vec3(uModelViewMatrix * vec4(aTangent,   0.0)));
+  //vec3 B = normalize(vec3(uModelViewMatrix * vec4(aBitangent, 0.0)));
+  //vec3 N = normalize(vec3(uModelViewMatrix * vec4(aNormal,    0.0)));
+  //mat3 TBN = mat3(T, B, N);
+
+  vViewSpacePosition = vec3(uModelViewMatrix * vec4(aPosition, 1));
+  vViewSpaceNormal = normalize(vec3(uNormalMatrix * vec4(aNormal, 0)));
+  vTexCoords = aTexCoords;
+  gl_Position =  uModelViewProjMatrix * vec4(aPosition, 1);
 }
