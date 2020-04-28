@@ -57,17 +57,20 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 
 void main()
 {
-  vec3 N;
+  vec3 N, L, V;
+
   if (uNormalMapUse) {
     N = texture(uNormalMapTexture, vTexCoords).rgb;
     N = normalize(N * 2.0 - 1.0);
     N = N * uNormalMapScale;
+    L = vTangentLightDirection;
+    V = normalize(-vTangentPosition);
   } else {
     N = normalize(vViewSpaceNormal);
+    L = uLightDirection;
+    V = normalize(-vViewSpacePosition);
   }
 
-  vec3 L = uLightDirection;
-  vec3 V = normalize(-vViewSpacePosition);
   vec3 H = normalize(L + V);
 
   // Dots
