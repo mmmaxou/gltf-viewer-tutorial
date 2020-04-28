@@ -177,17 +177,23 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
       glBindVertexArray(vertexArrayObjects[vaoOffset + primitiveIdx]);
 
       // The good news is, the code for each one is the same
-      // (we will duplicate it but it can easily be factorized with a loop over ["POSITION", "NORMAL", "TEXCOORD_0"]).
-      std::vector<std::string> parameters{"POSITION", "NORMAL", "TEXCOORD_0"};
-      std::vector<GLuint> vertexAttribEnum{VERTEX_ATTRIB_POSITION_IDX, VERTEX_ATTRIB_NORMAL_IDX, VERTEX_ATTRIB_TEXCOORD0_IDX};
+      // (we will duplicate it but it can easily be factorized with a loop over ["POSITION", "NORMAL", "TEXCOORD_0", "TANGENT"]).
 
-      for (size_t i = 0; i < 3; ++i)
+      // Based on https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#meshes
+      // Model should provide tangent.
+      std::vector<std::string> parameters{"POSITION", "NORMAL", "TANGENT", "TEXCOORD_0"};
+      std::vector<GLuint> vertexAttribEnum {VERTEX_ATTRIB_POSITION_IDX,
+                                            VERTEX_ATTRIB_NORMAL_IDX,
+                                            VERTEX_ATTRIB_TANGENT_IDX,
+                                            VERTEX_ATTRIB_TEXCOORD0_IDX};
+
+      for (size_t i = 0; i < parameters.size(); ++i)
       {
         std::string parameter = parameters[i];
         GLuint vertexAttrib = vertexAttribEnum[i];
         // std::cout << "Parameter is " << parameter << std::endl;
         // std::cout << "Vertex Attrib  is " << vertexAttrib << std::endl;
-
+        
         // Now inside that new loop we will need to enable and initialize the parameters for each vertex attribute (POSITION, NORMAL, TEXCOORD_0).
         const auto iterator = primitive.attributes.find(parameter);
         if (iterator != end(primitive.attributes))
@@ -228,150 +234,6 @@ std::vector<GLuint> ViewerApplication::createVertexArrayObjects(const tinygltf::
         }
       } // </>End vertex attribution loop
       
-
-      // The last thing we need in our inner loop is to set the index buffer of the vertex array object, if one exists.
-      // For that you need to check if primitive.indices >= 0.
-      // If that's the case then you need to get the accessor of index primitive.indices,
-      // its buffer view,
-      // and call glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, /* TODO fill with the correct buffer object */)
-      if (primitive.indices >= 0)
-      {
-        const auto &accessor = model.accessors[primitive.indices];
-        const auto &bufferView = model.bufferViews[accessor.bufferView];
-        const auto bufferIdx = bufferView.buffer;
-        const auto bufferObject = bufferObjects[bufferIdx];
-
-        assert(GL_ELEMENT_ARRAY_BUFFER == bufferView.target);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferObject);
-      }
-    } // </>End Primitive loop
-  }   // </>End Mesh loop
-
-  // End the description of our vertex array object:
-  glBindVertexArray(0);
-  return vertexArrayObjects;
-}
-
-std::vector<GLuint> ViewerApplication::createNormalMap(const tinygltf::Model &model,
-                                                       const std::vector<GLuint> &bufferObjects) const
-{
-
-  /// FOLLOW :
-  /// computeSceneBounds
-  ///
-
-  std::cout << COLOR_MAGENTA << "(つ•̀ᴥ•́)つ*:･ﾟ✧ " << COLOR_RESET << " Let's create a normal map" << std::endl;
-
-  // Define vertex attribs const
-  const GLuint VERTEX_ATTRIB_POSITION_IDX = 0;
-  const GLuint VERTEX_ATTRIB_NORMAL_IDX = 1;
-  const GLuint VERTEX_ATTRIB_TEXCOORD0_IDX = 2;
-
-  // In the function declare std::vector<GLuint> vertexArrayObjects;
-  // This vector will contain our vertex array objects.
-  // Take note that I don't give a size, because we don't know it yet.
-  std::vector<GLuint> vertexArrayObjects;
-
-  // Create a loop over meshes of the glTF (model.meshes)
-  for (size_t meshIdx = 0; meshIdx < model.meshes.size(); ++meshIdx)
-  {
-
-    // Extend the size of vertexArrayObjects using resize(),
-    // by adding the number of primitives of the current mesh of the loop
-    // (model.meshes[meshIdx].primitives.size()).
-    const auto vaoOffset = vertexArrayObjects.size();
-    const auto primitivesSize = model.meshes[meshIdx].primitives.size();
-
-    // Resize VAO to store our identifiers
-    vertexArrayObjects.resize(vaoOffset + primitivesSize);
-    // meshIndexToVaoRange.push_back(VaoRange{static_cast<GLsizei>(vaoOffset), static_cast<GLsizei>(primitivesSize)});
-    // std::cout << "Size is now " << vaoOffset + primitivesSize << std::endl;
-
-    // Call glGenVertexArrays to create new vertex arrays, one for each primitives.
-    // For that you will need to pass a pointer to the correct index vertexArrayObjects,
-    // which is the size of vertexArrayObjects before it was extended.
-    // So you need to store it in a variable before extending its size.
-    glGenVertexArrays(
-        primitivesSize,                // Amount
-        &vertexArrayObjects[vaoOffset] // Pointer to 1st index of the array
-    );
-
-    // Create a loop over the primitives of the current mesh (so this second loop is inside the first one).
-    for (size_t primitiveIdx = 0; primitiveIdx < primitivesSize; ++primitiveIdx)
-    {
-
-      // Declare the current primitive
-      const auto &primitive = model.meshes[meshIdx].primitives[primitiveIdx];
-
-      // Inside that loop, get the VAO corresponding to the primitive (vertexArrayObjects[vaoOffset + primitiveIdx])
-      // and bind it (glBindVertexArray).
-      glBindVertexArray(vertexArrayObjects[vaoOffset + primitiveIdx]);
-
-      // The good news is, the code for each one is the same
-      // (we will duplicate it but it can easily be factorized with a loop over ["POSITION", "NORMAL", "TEXCOORD_0"]).
-      std::vector<std::string> parameters{"POSITION", "NORMAL", "TEXCOORD_0"};
-      std::vector<GLuint> vertexAttribEnum{VERTEX_ATTRIB_POSITION_IDX, VERTEX_ATTRIB_NORMAL_IDX, VERTEX_ATTRIB_TEXCOORD0_IDX};
-
-      // Retrieve all infos for normal map computing
-      // positions
-      glm::vec3 pos1(-1.0, 1.0, 0.0);
-      glm::vec3 pos2(-1.0, -1.0, 0.0);
-      glm::vec3 pos3(1.0, -1.0, 0.0);
-      // texture coordinates
-      glm::vec2 uv1(0.0, 1.0);
-      glm::vec2 uv2(0.0, 0.0);
-      // normal vector
-      glm::vec3 nm(0.0, 0.0, 1.0);
-
-      for (size_t i = 0; i < 3; ++i)
-      {
-        std::string parameter = parameters[i];
-        GLuint vertexAttrib = vertexAttribEnum[i];
-        // std::cout << "Parameter is " << parameter << std::endl;
-        // std::cout << "Vertex Attrib  is " << vertexAttrib << std::endl;
-
-        // Now inside that new loop we will need to enable and initialize the parameters for each vertex attribute (POSITION, NORMAL, TEXCOORD_0).
-        const auto iterator = primitive.attributes.find(parameter);
-        if (iterator != end(primitive.attributes))
-        {
-          // If parameter(i.e. "POSITION") has been found in the map
-          // (*iterator).first is the key "POSITION",
-          // (*iterator).second is the value,
-          // ie. the index of the accessor for this attribute
-          const auto accessorIdx = (*iterator).second;
-          const auto &accessor = model.accessors[accessorIdx];             // TODO get the correct tinygltf::Accessor from model.accessors
-          const auto &bufferView = model.bufferViews[accessor.bufferView]; // TODO get the correct tinygltf::BufferView from model.bufferViews. You need to use the accessor
-          const auto bufferIdx = bufferView.buffer;                        // TODO get the index of the buffer used by the bufferView (you need to use it)
-          const auto bufferObject = bufferObjects[bufferIdx];              // TODO get the correct buffer object from the buffer index
-          assert(GL_ARRAY_BUFFER == bufferView.target);
-
-          // Verify
-          // std::cout << "Buffer object data len is " << bufferObject.data.size() << std::endl;
-
-          // TODO Enable the vertex attrib array corresponding to POSITION with glEnableVertexAttribArray
-          // (you need to use VERTEX_ATTRIB_POSITION_IDX which is defined at the top of the file)
-          glEnableVertexAttribArray(vertexAttrib);
-
-          // TODO Bind the buffer object to GL_ARRAY_BUFFER
-          glBindBuffer(GL_ARRAY_BUFFER, bufferObject);
-
-          // TODO Compute the total byte offset using the accessor and the buffer view
-          const auto byteOffset = bufferView.byteOffset + accessor.byteOffset;
-          const auto byteStride = bufferView.byteStride ? bufferView.byteStride : 3 * sizeof(float);
-
-          // TODO Call glVertexAttribPointer with the correct arguments.
-          // Remember size is obtained with accessor.type, type is obtained with accessor.componentType.
-          // The stride is obtained in the bufferView, normalized is always GL_FALSE, and pointer is the byteOffset (don't forget the cast).
-          glVertexAttribPointer(
-              vertexAttrib,              // GLuint index,
-              accessor.type,             // GLint size,
-              accessor.componentType,    // GLenum type,
-              GL_FALSE,                  // GLboolean normalized,
-              bufferView.byteStride,     // GLsizei stride,
-              (const GLvoid *)byteOffset // const GLvoid * pointer)
-          );
-        }
-      } // </>End vertex attribution loop
 
       // The last thing we need in our inner loop is to set the index buffer of the vertex array object, if one exists.
       // For that you need to check if primitive.indices >= 0.

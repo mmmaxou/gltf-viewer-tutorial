@@ -61,8 +61,8 @@ void main()
 
   if (uNormalMapUse) {
     N = texture(uNormalMapTexture, vTexCoords).rgb;
-    N = normalize(N * 2.0 - 1.0);
-    N = N * uNormalMapScale;
+    N = N * 2.0 - 1.0;
+    N = N * vec3(uNormalMapScale, uNormalMapScale, 1.0);
     L = vTangentLightDirection;
     V = normalize(-vTangentPosition);
   } else {

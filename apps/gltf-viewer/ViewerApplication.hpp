@@ -38,8 +38,6 @@ private:
                                                const std::vector<GLuint> &bufferObjects,
                                                std::vector<VaoRange> &meshIndexToVaoRange);
   std::vector<GLuint> createTextureObjects(const tinygltf::Model &model) const;
-  std::vector<GLuint> createNormalMap(const tinygltf::Model &model,
-                                      const std::vector<GLuint> &bufferObjects) const;
 
   /**
    * Attributes
