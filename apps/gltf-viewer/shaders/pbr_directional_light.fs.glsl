@@ -20,6 +20,10 @@ uniform vec3 uEmissiveFactor;
 uniform sampler2D uOcclusionTexture;
 uniform float uOcclusionStrength;
 
+uniform sampler2D uNormalMapTexture;
+uniform float uNormalMapScale;
+uniform bool uNormalMapUse;
+
 out vec3 fColor;
 
 // Constants
@@ -50,7 +54,15 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 
 void main()
 {
-  vec3 N = normalize(vViewSpaceNormal);
+  vec3 N;
+  if (uNormalMapUse) {
+    N = texture(uNormalMapTexture, vTexCoords).rgb;
+    N = normalize(N * 2.0 - 1.0);
+    N = N * uNormalMapScale;
+  } else {
+    N = normalize(vViewSpaceNormal);
+  }
+
   vec3 L = uLightDirection;
   vec3 V = normalize(-vViewSpacePosition);
   vec3 H = normalize(L + V);
@@ -66,6 +78,7 @@ void main()
 
   // Base texture
   vec4 baseColorFromTexture = SRGBtoLINEAR(texture(uBaseColorTexture, vTexCoords));
+  //vec4 baseColorFromTexture = SRGBtoLINEAR(texture(uNormalMapTexture, vTexCoords)); // Test for normal map texture load
   vec4 baseColor = baseColorFromTexture * uBaseColorFactor;
   // vec3 diffuse = baseColor.rgb * M_1_PI * NdotL;
 

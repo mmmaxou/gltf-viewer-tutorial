@@ -504,6 +504,12 @@ int ViewerApplication::run()
   const auto uniformRougnessFactor = glGetUniformLocation(glslProgram.glId(), "uRougnessFactor");
   const auto uniformMetallicRoughnessTexture = glGetUniformLocation(glslProgram.glId(), "uMetallicRoughnessTexture");
 
+  // Normal map
+  const auto uniformNormalMapTexture = glGetUniformLocation(glslProgram.glId(), "uNormalMapTexture");
+  const auto uniformNormalMapScale = glGetUniformLocation(glslProgram.glId(), "uNormalMapScale");
+  const auto uniformNormalMapUse = glGetUniformLocation(glslProgram.glId(), "uNormalMapUse");
+  
+
   // Declare and initialize two glm::vec3 variables lightDirection and lightIntensity.
   glm::vec3 lightDirection(1.f, 1.f, 1.f);
   glm::vec3 lightRadiance(2.f, 2.f, 2.f);
@@ -689,11 +695,20 @@ int ViewerApplication::run()
   };
 
   const auto noOcclusionCall = [&]() {
-    // Default to no emissive
+    // Default to no occlusion
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, 0);
     glUniform1i(uniformOcclusionTexture, 0);
     glUniform1f(uniformOcclusionStrength, 1.f);
+  };
+
+  const auto noNormalMapCall = [&]() {
+    // Default to no Normal map
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glUniform1i(uniformNormalMapTexture, 0);
+    glUniform1f(uniformNormalMapScale, 1.f);
+    glUniform1i(uniformNormalMapUse, false);
   };
 
   // In order to have a more or less clean implementation,
@@ -769,6 +784,20 @@ int ViewerApplication::run()
         noOcclusionCall();
       }
 
+      // Normal map call
+      if (useNormalMap && material.normalTexture.index >= 0)
+      {
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, textureObjects[material.normalTexture.index]);
+        glUniform1i(uniformNormalMapTexture, 4);
+        glUniform1f(uniformNormalMapScale, material.normalTexture.scale || 1.f);
+        glUniform1i(uniformNormalMapUse, true);
+      }
+      else
+      {
+        noNormalMapCall();
+      }
+
       return;
     }
 
@@ -783,6 +812,9 @@ int ViewerApplication::run()
 
     // Default to no occlusion
     noOcclusionCall();
+
+    // Default to no normal map
+    noNormalMapCall();
   };
 
   // Lambda function to draw the scene
