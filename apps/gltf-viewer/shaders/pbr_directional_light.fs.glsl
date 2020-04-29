@@ -68,6 +68,7 @@ void main()
     mat3 TBN;
     if (vTangent == vec3(0,0,0)) {
       // Compute TBN Matrix from GPU
+      // Inspired from https://community.khronos.org/t/computing-the-tangent-space-in-the-fragment-shader/52861
       vec3 posdFdx = dFdx(vViewSpacePosition);
       vec3 posdFdy = dFdy(vViewSpacePosition);
       vec2 texdFdx = dFdx(vTexCoords);
@@ -75,11 +76,14 @@ void main()
       vec3 T = normalize(texdFdy.y * posdFdx - texdFdx.y * posdFdx);
       vec3 N = vViewSpaceNormal;
       T = normalize(cross(cross(N, T), N));
+
+      // Part inspired from https://learnopengl.com/Advanced-Lighting/Normal-Mapping
       T = normalize(T - dot(T, N) * N);
       vec3 B = cross(N, T);
       TBN = mat3(T, B, N);
     } else {
       // Use tangent values provided
+      // Inspired from https://learnopengl.com/Advanced-Lighting/Normal-Mapping
       vec3 T = normalize(vec3(uModelViewMatrix * vec4(vTangent, 0.0)));
       vec3 N = normalize(vec3(uModelViewMatrix * vec4(vNormal, 0.0)));
       T = normalize(T - dot(T, N) * N);
